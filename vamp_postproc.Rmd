@@ -1,0 +1,48 @@
+---
+title: "Postprocess Motion Trace Features from VAMP"
+output: html_notebook
+---
+
+Convert individual VAMP feature csv files to a long table.
+
+
+```{r load_vamp, echo=TRUE, cache=TRUE}
+library(tidyverse)
+library(magrittr)
+library(moments)
+
+csv_path <- "./public_speaking/raw"
+csvs <- list.files(path = csv_path, pattern='^.*\\.csv$')
+
+# write a special little read.csv function to do exactly what we want
+my.read.csv <- function(fnam){
+  csvfile <- paste(csv_path, fnam, sep="/")
+  df <- read.csv(csvfile, header=T)
+  df$labsession <- substr(fnam, 1, 17) # use full file name
+  df
+
+}
+
+dfs <- lapply(csvs, my.read.csv)
+
+# painfully slow 
+# long.tb<-Reduce(function(x, y) merge(x, y, all=TRUE), dfs)
+# using lighting fast dplyr bind_rows()
+long.tb <- bind_rows(dfs)
+
+# write.csv(long.tb, file="emotion_features.csv", row.names=F)
+```
+
+For each response (SessionID), compute moment-based features.
+
+* moments: $mean$, $sd$, $kurtosis$, and $skewness$
+
+```{r feat_extract,echo=TRUE,cache=TRUE}
+feats_persession <- long.tb %>%
+  group_by(labsession) %>%
+    summarise_each(funs(mean(., na.rm=TRUE), sd, kurtosis, skewness),
+                   kinetic_energy:left_wrist_right_wrist_disp_second_derv)
+
+save(feats_persession, file="ps2014_vamp.RData")
+```
+
